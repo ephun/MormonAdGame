@@ -37,7 +37,7 @@
                 {% if game_state.state == 'writing' %}
                     - {% if player_data.submitted_this_round %}Submitted{% else %}Writing...{% endif %}
                 {% elif game_state.state == 'voting' %}
-                    - {% if player_data.voted_this_round %}Voted{% else %}Voting...{% endif %}
+                    - {% if player_data.voted_this_round %}Your vote has been noted.{% else %}Voting...{% endif %}
                 {% endif %}
                 (Score: {{ player_data.score }})
                  {# Check if this is the current user's session ID #}
