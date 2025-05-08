@@ -11,29 +11,26 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'a_very_secret_key_replace_me_in_prod'
 
 # --- Configuration ---
-WRITING_TIME_SECONDS = 60
-VOTING_TIME_SECONDS = 20
-WAIT_PAGE_REFRESH_SECONDS = 1 # Meta refresh speed on wait page
+WRITING_TIME_SECONDS = 30
+VOTING_TIME_SECONDS = 30
+WAIT_PAGE_REFRESH_SECONDS = 1
 
-# --- Font and Rendering Configuration (Adjust paths and ratios as needed) ---
-TITLE_FONT_PATH = 'static/fonts/title.otf' # Adjust path if you put fonts elsewhere
-BODY_FONT_PATH = 'static/fonts/body.ttf'   # Adjust path if you put fonts elsewhere
-# Ratios are based on your 500px height example image (assuming width 300 proportional to height)
-BASE_HEIGHT_EXAMPLE = 500
-BASE_WIDTH_EXAMPLE = 300
+# --- Font and Rendering Configuration (Percentage-based, adjust values 0-100) ---
+# Paths are relative to app root's static folder
+TITLE_FONT_PATH = 'static/fonts/title.otf'
+BODY_FONT_PATH = 'static/fonts/body.ttf'
 
-# Text 1 (Title) - scaled based on image height
-TITLE_TOP_RATIO = 50 / BASE_HEIGHT_EXAMPLE # 0.1
-TITLE_WIDTH_RATIO = 300 / BASE_HEIGHT_EXAMPLE # 0.6
-TITLE_FONT_SIZE_RATIO = 40 / BASE_HEIGHT_EXAMPLE # 0.08
-TITLE_MAX_CHARS_PER_LINE = 15 # Estimated chars before wrapping for title font/size/width
+# Text 1 (Title) - Percentages of actual image dimensions
+TITLE_TOP_PERCENT = 10         # Top edge starts 10% down from image top
+TITLE_WIDTH_PERCENT = 75       # Bounding box is 75% of image width (Adjust as needed)
+TITLE_FONT_SIZE_PERCENT_OF_HEIGHT = 8 # Font size is 8% of image height (Adjust as needed)
 
-# Text 2 (Body) - scaled based on image height
-BODY_TOP_RATIO = 400 / BASE_HEIGHT_EXAMPLE # 0.8
-BODY_WIDTH_RATIO = 300 / BASE_HEIGHT_EXAMPLE # 0.6
-BODY_FONT_SIZE_RATIO = 15 / BASE_HEIGHT_EXAMPLE # 0.02
-BODY_MAX_CHARS_PER_LINE = 35 # Estimated chars before wrapping for body font/size/width
-BODY_LINE_HEIGHT_RATIO = 1.2 # Adjust line height multiplier if needed
+# Text 2 (Body) - Percentages of actual image dimensions
+BODY_TOP_PERCENT = 80          # Top edge starts 80% down from image top (Adjust as needed)
+BODY_WIDTH_PERCENT = 80        # Bounding box is 80% of image width (Adjust as needed)
+BODY_FONT_SIZE_PERCENT_OF_HEIGHT = 3  # Font size is 3% of image height (Adjust as needed)
+BODY_LINE_HEIGHT_MULTIPLIER = 1.2 # Vertical space between lines = font size * multiplier (Adjust as needed)
+
 
 # --- Game State ---
 game_state = {
@@ -55,7 +52,7 @@ def get_player_id():
     """Gets the unique ID for the current player's session."""
     if 'player_id' not in session:
         session['player_id'] = str(uuid.uuid4())
-        print(f"Generated new session ID: {session['player_id']}") # Debug print
+        # print(f"Generated new session ID: {session['player_id']}") # Keep commented
     return session['player_id']
 
 def get_current_player():
@@ -70,15 +67,14 @@ def load_all_posters():
          return []
 
     poster_dir = os.path.join(app.static_folder, 'posters')
-    # print(f"DEBUG: Looking for posters in directory: {poster_dir}") # Keep commented for less noise
+    # print(f"DEBUG: Looking for posters in directory: {poster_dir}") # Keep commented
     if not os.path.exists(poster_dir):
         print(f"DEBUG: Warning: Posters directory not found at {poster_dir}")
         return []
     try:
         poster_files = [f for f in os.listdir(poster_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp'))]
-        # print(f"DEBUG: Found {len(poster_files)} potential poster files.") # Keep commented for less noise
         poster_paths = [f'posters/{f}' for f in poster_files]
-        # print(f"DEBUG: Loaded {len(poster_paths)} poster paths.") # Keep commented for less noise
+        # print(f"DEBUG: Loaded {len(poster_paths)} poster paths.") # Keep commented
         return poster_paths
     except Exception as e:
         print(f"DEBUG: Error listing directory {poster_dir}: {e}")
@@ -136,14 +132,11 @@ def tally_votes():
         max_votes = max(vote_counts.values())
         # Find all players who got max votes (handle ties simply by picking one)
         potential_winners = [p_id for p_id, count in vote_counts.items() if count == max_votes]
-        # Ensure potential_winners is not empty before random.choice
         if potential_winners:
             winning_caption_id = random.choice(potential_winners)
 
-
-    # Update scores for all players who received votes
     for author_id, count in vote_counts.items():
-        if author_id in game_state['players']: # Ensure the player still exists
+        if author_id in game_state['players']:
             game_state['players'][author_id]['score'] += count # Each vote is 1 point
 
     game_state['winning_caption_id'] = winning_caption_id
@@ -195,9 +188,8 @@ def check_and_advance_state_if_timer_expired():
 
 def render_caption_on_image(poster_path, text1, text2):
     """Renders text1 and text2 onto the poster image dynamically."""
-    # Ensure app context is available for url_for and static_folder if this is called outside a request
-    # It's called from within request contexts (/rendered_caption), so static_folder should be available.
     full_poster_path = os.path.join(app.static_folder, poster_path)
+    print(f"\n--- RENDER START ---")
     print(f"RENDER_DEBUG: Attempting to render on poster: {full_poster_path}")
     print(f"RENDER_DEBUG: Caption Text 1: '{text1}', Text 2: '{text2}'")
 
@@ -210,270 +202,309 @@ def render_caption_on_image(poster_path, text1, text2):
         # --- Dynamic Font Loading and Sizing ---
         title_font = None
         body_font = None
-        # Calculate dynamic font sizes
-        title_font_size = int(img_height * TITLE_FONT_SIZE_RATIO)
-        body_font_size = int(img_height * BODY_FONT_SIZE_RATIO)
+
+        # Calculate dynamic font sizes based on image height percentages
+        title_font_size = int(img_height * (TITLE_FONT_SIZE_PERCENT_OF_HEIGHT / 100))
+        body_font_size = int(img_height * (BODY_FONT_SIZE_PERCENT_OF_HEIGHT / 100))
+
         # Ensure font size is not zero or negative
         title_font_size = max(1, title_font_size)
         body_font_size = max(1, body_font_size)
 
+        print(f"RENDER_DEBUG: Calculated Font Sizes: Title={title_font_size}px, Body={body_font_size}px")
+
         try:
             # Construct full paths to fonts within the static folder
+            # Use os.path.join and app.static_folder correctly
             full_title_font_path = os.path.join(app.static_folder, TITLE_FONT_PATH.replace('static/', ''))
             full_body_font_path = os.path.join(app.static_folder, BODY_FONT_PATH.replace('static/', ''))
+
 
             print(f"RENDER_DEBUG: Attempting to load Title Font from: {full_title_font_path}")
             print(f"RENDER_DEBUG: Attempting to load Body Font from: {full_body_font_path}")
 
             title_font = ImageFont.truetype(full_title_font_path, title_font_size)
             body_font = ImageFont.truetype(full_body_font_path, body_font_size)
-            print(f"RENDER_DEBUG: Custom fonts loaded. Title size: {title_font_size}, Body size: {body_font_size}")
+            print(f"RENDER_DEBUG: Custom fonts loaded successfully.")
 
         except IOError as e:
              print(f"RENDER_DEBUG: Could not load custom font files. Error: {e}. Rendering with default font.")
              try:
-                 # Fallback to a default PIL font if custom fonts fail
-                 # Default font doesn't support truetype, load directly
                  title_font = ImageFont.load_default()
                  body_font = ImageFont.load_default()
                  print("RENDER_DEBUG: Default fonts loaded.")
-                 # Note: Default font sizing/positioning will be different.
-                 # We won't have reliable font.size or textbbox/getsize pixel measurements.
-                 # We'll have to rely more on character count estimates for wrapping fallback.
-                 # A default font size estimate might be needed if using getsize/textbbox isn't possible.
+                 # Note: Default font rendering/measurement is simplified.
+                 # Calculated sizes/positions may not align visually.
+                 # Truncation might be less precise with default font.
 
              except Exception as e:
-                 print(f"RENDER_DEBUG: Could not load default font either: {e}")
-                 return None # Cannot render without any font
+                 print(f"RENDER_DEBUG: Could load default font either: {e}")
+                 return None
 
-        # If font loading failed entirely
         if not title_font or not body_font:
              print("RENDER_DEBUG: No usable fonts loaded. Rendering failed.")
              return None
 
 
-        # --- Dynamic Positioning and Text Wrapping ---
-        # Calculate dynamic text box widths (relative to image height as per example)
-        title_box_width = int(img_height * TITLE_WIDTH_RATIO)
-        body_box_width = int(img_height * BODY_WIDTH_RATIO)
+        # --- Dynamic Positioning and Text Layout ---
+
+        # Calculate dynamic text box widths based on image width percentages
+        title_box_width = int(img_width * (TITLE_WIDTH_PERCENT / 100))
+        body_box_width = int(img_width * (BODY_WIDTH_PERCENT / 100))
 
         # Ensure text box widths are positive and not exceeding image width
         title_box_width = max(1, min(img_width, title_box_width))
         body_box_width = max(1, min(img_width, body_box_width))
 
-        # Calculate dynamic top positions (relative to image height)
-        title_top_y = int(img_height * TITLE_TOP_RATIO)
-        body_top_y = int(img_height * BODY_TOP_RATIO)
+        print(f"RENDER_DEBUG: Calculated Box Widths: Title={title_box_width}px, Body={body_box_width}px")
 
-        # Ensure top positions are within image bounds (roughly) - can't be negative, can be >= height-1
+
+        # Calculate dynamic top positions based on image height percentages
+        title_top_y = int(img_height * (TITLE_TOP_PERCENT / 100))
+        body_top_y = int(img_height * (BODY_TOP_PERCENT / 100))
+
+        # Ensure top positions are not negative
         title_top_y = max(0, title_top_y)
         body_top_y = max(0, body_top_y)
 
-        # Calculate horizontal center position for text boxes (defined *before* loops)
-        title_left_x = (img_width - title_box_width) // 2
-        body_left_x = (img_width - body_box_width) // 2
+        print(f"RENDER_DEBUG: Calculated Top Positions: Title={title_top_y}px, Body={body_top_y}px")
 
 
-        # Helper to get line width reliably if possible - DEFINED INSIDE render_caption_on_image
-        def get_text_width(txt, fnt):
+        # Calculate horizontal *center* position for drawing the text lines
+        # This is the center of the image width
+        center_x = img_width // 2
+
+
+        # Helper to get line width reliably - Pass estimated_font_size for fallback
+        def get_text_width(txt, fnt, estimated_font_size):
+             if not txt: return 0 # Empty string has 0 width
              try:
-                 # Try modern Pillow textbbox first
                  if hasattr(fnt, 'textbbox'):
-                      # textbbox returns (left, top, right, bottom)
-                      # width is right - left. Assume left is 0 for line measurement.
                       bbox = fnt.textbbox((0,0), txt)
-                      return bbox[2] # Return width
-                 # Fallback to older getsize (deprecated)
-                 elif hasattr(fnt, 'getsize'):
-                      return fnt.getsize(txt)[0] # Return width
+                      return bbox[2]
+                 elif hasattr(fnt, 'getsize'): # Deprecated, but fallback
+                      return fnt.getsize(txt)[0]
              except Exception as e:
-                  print(f"RENDER_DEBUG: Error measuring text width for '{txt}' with font {fnt} (type: {type(fnt)}): {e}")
-             return -1 # Indicate failure
+                  # print(f"RENDER_DEBUG: Error measuring text width for '{txt[:20]}...' with font {fnt}: {e}") # Keep commented
+                  pass # Fail gracefully
+             # Fallback estimation if measurement fails
+             # Estimate width based on font size and average character width multiplier (e.g., 0.6)
+             # This helps layout_text_lines make better decisions even if pixel measurement fails
+             # Ensure estimated_font_size is not zero before multiplying
+             if estimated_font_size <= 0:
+                 return int(len(txt) * 10) # Default small estimate if font size is tiny
 
-        # Helper for wrapping text - DEFINED INSIDE render_caption_on_image
-        def wrap_text(text, font, max_width_pixels): # max_chars_per_line_est removed
+             return int(len(txt) * estimated_font_size * 0.6) # <-- Added estimation here
+
+
+        # Helper to get line height reliably
+        def get_text_height(txt, fnt, estimated_font_size, line_height_multiplier):
+             if not txt: # Height of an empty line for spacing purposes
+                 try:
+                     if hasattr(fnt, 'getmetrics'):
+                         ascent, descent = fnt.getmetrics()
+                         return int((ascent + descent) * line_height_multiplier)
+                     elif hasattr(fnt, 'textbbox'):
+                         # Try measuring a placeholder character if textbbox exists but text is empty
+                         try: return int(fnt.textbbox((0,0), 'X')[3] * line_height_multiplier)
+                         except: pass
+                 except Exception:
+                     pass
+                 # Ensure estimated_font_size is not zero before multiplying
+                 if estimated_font_size <= 0:
+                      return int(10 * line_height_multiplier) # Default small estimate
+
+                 return int(estimated_font_size * line_height_multiplier)
+
+             try:
+                 if hasattr(fnt, 'textbbox'):
+                      return int(estimated_font_size * line_height_multiplier)
+                 elif hasattr(fnt, 'getsize'): # Deprecated, but fallback
+                      return int(fnt.getsize(txt)[1] * line_height_multiplier)
+             except Exception as e:
+                  print(f"RENDER_DEBUG: Error measuring text height for '{txt[:20]}...' with font {fnt}: {e}")
+             # Fallback estimation
+             # Ensure estimated_font_size is not zero before multiplying
+             if estimated_font_size <= 0:
+                  return int(10 * line_height_multiplier) # Default small estimate
+
+             return int(estimated_font_size * line_height_multiplier)
+
+
+        # Helper for word wrapping + fallback truncation if a single word is too wide
+        # This version does word wrapping first, and if a single word is still too wide, it puts that word on a line
+        # and that single line might visually overflow the box if it's still too long after estimation.
+        def layout_text_lines(text, font, max_width_pixels, estimated_font_size): # Pass estimated_font_size
+            print(f"RENDER_DEBUG: layout_text_lines Input: '{text}', MaxWidth: {max_width_pixels}, EstFontSize: {estimated_font_size}")
             if not text: return []
-            lines = []
+
+            wrapped_lines = []
             words = text.split()
-            current_line = []
+            current_line_words = []
+            # Safe max width uses the actual max_width_pixels calculated from percentage
+            # Add a small buffer to the safe width
+            safe_max_width = max_width_pixels * 0.98 # Use 98% of box width for safety margin
+
 
             for word in words:
-                test_line = ' '.join(current_line + [word])
-                line_width_pixels = get_text_width(test_line, font)
+                test_line = ' '.join(current_line_words + [word])
+                line_width_pixels = get_text_width(test_line, font, estimated_font_size)
+                print(f"RENDER_DEBUG:   Testing line '{test_line[:20]}...', Width: {line_width_pixels}, Safe Max: {safe_max_width}")
 
-                # Use a slightly reduced max_width_pixels to be safe against rounding or edge issues
-                safe_max_width = max_width_pixels * 0.95 # Example: Use 95% of box width
 
                 if line_width_pixels == -1 or line_width_pixels > safe_max_width:
-                    # If measurement failed OR it exceeds safe max width
-                    if current_line:
-                        lines.append(' '.join(current_line))
-                        current_line = [word]
-                    else:
-                         # If the single word itself cannot be measured or exceeds width,
-                         # put it on its own line. It might overflow visually.
-                         lines.append(word)
-                         current_line = []
+                    # If measurement failed OR adding the word makes the line too wide
+                    print(f"RENDER_DEBUG:   Line overflow or measurement failed. Current: '{' '.join(current_line_words)}', Next word: '{word}'")
+                    if current_line_words: # If there's content in the current line
+                         wrapped_lines.append(' '.join(current_line_words)) # Finalize the current line
+                         print(f"RENDER_DEBUG:   Wrapped line: '{wrapped_lines[-1]}'")
+                         current_line_words = [word] # Start a new line with the current word
+                         print(f"RENDER_DEBUG:   Starting new line with: '{word}'")
+                    else: # If the *single word itself* is too wide or measurement failed, add it as its own line
+                         # In this version, we allow single words to overflow visually if needed after measurement fallback
+                         # We should still ensure it's not an empty string if the word wasn't empty
+                         if word: # Only add the word if it's not empty
+                             wrapped_lines.append(word)
+                             print(f"RENDER_DEBUG:   Added single word line (might overflow): '{word}'")
+                         current_line_words = [] # Start a new empty line
+                         print(f"RENDER_DEBUG:   Starting new empty line.")
                 else:
-                    current_line.append(word)
-
-            if current_line:
-                lines.append(' '.join(current_line))
-            return lines
+                    current_line_words.append(word) # Add word to current line
+                    # print(f"RENDER_DEBUG:   Added word '{word}' to current line. Current line: '{' '.join(current_line_words)}'") # Keep commented, too verbose
 
 
-        print(f"RENDER_DEBUG: Wrapping Text 1: '{text1}', Max Width Pixels: {title_box_width}")
-        print(f"RENDER_DEBUG: Wrapping Text 2: '{text2}', Max Width Pixels: {body_box_width}")
+            if current_line_words: # Add any remaining words as the last wrapped line
+                wrapped_lines.append(' '.join(current_line_words))
+                print(f"RENDER_DEBUG: Added remaining current line: '{wrapped_lines[-1]}'")
 
-        # Wrap the caption texts
-        # Ensure text is uppercase as per original CSS intention
-        wrapped_text1_lines = wrap_text(text1.upper(), title_font, title_box_width)
-        wrapped_text2_lines = wrap_text(text2.upper(), body_font, body_box_width)
+            # Remove any purely empty strings that might have been generated by logic errors or multiple splits
+            final_lines = [line for line in wrapped_lines if line]
 
-        print(f"RENDER_DEBUG: Wrapped Text 1 lines: {wrapped_text1_lines}")
-        print(f"RENDER_DEBUG: Wrapped Text 2 lines: {wrapped_text2_lines}")
+            # If the original input text was NOT empty, but the final lines list IS empty,
+            # it indicates a layout/truncation failure resulted in everything being removed.
+            # In this specific case, add at least an empty line to maintain vertical flow.
+            if text and not final_lines:
+                 final_lines = [""]
+                 print("RENDER_DEBUG: Input text was not empty, but layout resulted in empty lines. Adding single empty line.")
 
 
-        # --- Draw Text with Inverted Color ---
+            print(f"RENDER_DEBUG: layout_text_lines Output (after cleaning empty): {final_lines}")
+            return final_lines
 
-        # Helper to get line height reliably - DEFINED INSIDE render_caption_on_image
-        def get_text_height(txt, fnt, estimated_font_size, line_height_ratio):
-             try:
-                 if hasattr(fnt, 'textbbox'):
-                      # textbbox returns (left, top, right, bottom)
-                      # Height is bottom - top.
-                      bbox = fnt.textbbox((0,0), txt)
-                      # Use estimated font size * line_height_ratio for consistent line spacing
-                      # Need to consider asc/desc for accurate line height, but multiplier is a decent estimate
-                      return int(estimated_font_size * line_height_ratio)
-                 elif hasattr(fnt, 'getsize'):
-                      # getsize returns (width, height)
-                      return int(fnt.getsize(txt)[1] * line_height_ratio)
-             except Exception as e:
-                  print(f"RENDER_DEBUG: Error measuring text height for '{txt}' with font {fnt} (type: {type(fnt)}): {e}")
-             # Fallback estimation
-             return int(estimated_font_size * line_height_ratio)
 
+        # Split input text by explicit newlines (\n) first, then layout each resulting part
+        text1_safe = text1 if text1 is not None else ''
+        text2_safe = text2 if text2 is not None else ''
+
+        # Process Text 1 (Title) - Apply layout to each line split by \n
+        processed_text1_lines = []
+        for part in text1_safe.upper().split('\n'):
+            processed_text1_lines.extend(layout_text_lines(part, title_font, title_box_width, title_font_size))
+
+        # Process Text 2 (Body) - Apply layout to each line split by \n
+        processed_text2_lines = []
+        for part in text2_safe.upper().split('\n'):
+             processed_text2_lines.extend(layout_text_lines(part, body_font, body_box_width, body_font_size))
+
+
+        print(f"RENDER_DEBUG: Final Processed Text 1 lines (for drawing): {processed_text1_lines}")
+        print(f"RENDER_DEBUG: Final Processed Text 2 lines (for drawing): {processed_text2_lines}")
+
+
+        # --- Draw Text with Inverted Color using Anchor (Color sampled ONCE per block) ---
 
         # Text 1 (Title)
-        y_offset = title_top_y
-        for line in wrapped_text1_lines:
-            if not line: continue # Skip empty lines
+        title_inverted_color = (255, 255, 255) # Default to white
 
-            # Calculate line height
-            line_height = get_text_height(line, title_font, title_font_size, 1.2) # Using 1.2 multiplier for title as well for consistency
+        # Sample color under the first *non-empty* processed line if it exists
+        first_title_line = next((line for line in processed_text1_lines if line), None)
 
-            # Calculate horizontal center position for THIS line (within the overall box)
-            line_width = get_text_width(line, title_font) # Get width using helper
-            if line_width == -1: line_width = title_box_width # Fallback if measurement failed
-
-            line_left_x = title_left_x + (title_box_width - line_width) // 2 # Center align within box
-
-
-            # Get the background color under the approximate center of the line
-            # Check bounds before sampling
-            sample_x = max(0, min(img_width - 1, line_left_x + line_width // 2))
-            sample_y = max(0, min(img_height - 1, y_offset + line_height // 2))
+        if first_title_line:
+            first_line_height = get_text_height(first_title_line, title_font, title_font_size, 1.2)
+            # Calculate sample point (horizontal center of the image, vertical center of the first line)
+            sample_x = max(0, min(img_width - 1, center_x)) # Sample at horizontal image center
+            sample_y = max(0, min(img_height - 1, title_top_y + first_line_height // 2))
 
             try:
                 bg_color = img.getpixel((sample_x, sample_y))
-                inverted_color = (255 - bg_color[0], 255 - bg_color[1], 255 - bg_color[2])
+                title_inverted_color = (255 - bg_color[0], 255 - bg_color[1], 255 - bg_color[2])
             except Exception as e:
-                 inverted_color = (255, 255, 255) # Default to white for any sampling errors
                  print(f"RENDER_DEBUG: Error sampling pixel for T1 at ({sample_x}, {sample_y}): {e}. Defaulting color.")
+                 title_inverted_color = (255, 255, 255)
+
+
+        y_offset = title_top_y
+        for line in processed_text1_lines:
+            # Use actual title_font_size for get_text_height, even for empty lines
+            line_height = get_text_height(line, title_font, title_font_size, 1.2)
+
+            if not line:
+                 # Even if line is empty, advance y_offset by height of an empty line for spacing
+                 y_offset += line_height
+                 continue
+
+            line_center_y = y_offset + line_height // 2
 
             try:
-                draw.text((line_left_x, y_offset), line, fill=inverted_color, font=title_font)
+                # print(f"RENDER_DEBUG: Drawing T1 Line '{line}' at CENTER_X={center_x}, CENTER_Y={line_center_y} with color {title_inverted_color}")
+                draw.text((center_x, line_center_y), line, fill=title_inverted_color, font=title_font, anchor='mm')
             except Exception as e:
                  print(f"RENDER_DEBUG: Error drawing Text 1 line '{line}': {e}")
 
-            y_offset += line_height # Move down for the next line
+            y_offset += line_height
 
 
         # Text 2 (Body)
-        y_offset = body_top_y # Reset y_offset for body text
-        for line in wrapped_text2_lines:
-            if not line: continue
+        body_inverted_color = (255, 255, 255) # Default to white
 
-             # Calculate line height (Estimate from font size and multiplier)
-            body_line_height = get_text_height(line, body_font, body_font_size, BODY_LINE_HEIGHT_RATIO)
+        # Sample color under the first *non-empty* truncated line if it exists
+        first_body_line = next((line for line in processed_text2_lines if line), None)
 
-             # Calculate horizontal center position for THIS line
-            line_width = get_text_width(line, body_font) # Get width using helper
-            if line_width == -1: line_width = body_box_width # Fallback if measurement failed
-
-            line_left_x = body_left_x + (body_box_width - line_width) // 2 # Center align within box
-
-             # Get the background color under the approximate center of the line
-             # Check bounds before sampling
-            sample_x = max(0, min(img_width - 1, line_left_x + line_width // 2))
-            sample_y = max(0, min(img_height - 1, y_offset + body_line_height // 2))
+        if first_body_line:
+            first_line_height = get_text_height(first_body_line, body_font, body_font_size, BODY_LINE_HEIGHT_MULTIPLIER)
+            sample_x = max(0, min(img_width - 1, center_x))
+            sample_y = max(0, min(img_height - 1, body_top_y + first_line_height // 2))
 
             try:
                 bg_color = img.getpixel((sample_x, sample_y))
-                inverted_color = (255 - bg_color[0], 255 - bg_color[1], 255 - bg_color[2])
+                body_inverted_color = (255 - bg_color[0], 255 - bg_color[1], 255 - bg_color[2])
             except Exception as e:
-                 inverted_color = (255, 255, 255)
                  print(f"RENDER_DEBUG: Error sampling pixel for T2 at ({sample_x}, {sample_y}): {e}. Defaulting color.")
+                 body_inverted_color = (255, 255, 255)
+
+
+        y_offset = body_top_y
+        for line in processed_text2_lines:
+             # Use actual body_font_size for get_text_height, even for empty lines
+            body_line_height = get_text_height(line, body_font, body_font_size, BODY_LINE_HEIGHT_MULTIPLIER)
+
+            if not line:
+                 y_offset += body_line_height
+                 continue
+
+            line_center_y = y_offset + body_line_height // 2
 
             try:
-                draw.text((line_left_x, y_offset), line, fill=inverted_color, font=body_font)
+                 draw.text((center_x, line_center_y), line, fill=body_inverted_color, font=body_font, anchor='mm')
             except Exception as e:
                  print(f"RENDER_DEBUG: Error drawing Text 2 line '{line}': {e}")
 
-            y_offset += body_line_height # Move down
+            y_offset += body_line_height
 
-        print("RENDER_DEBUG: Image rendering complete. Returning image object.")
-        return img # Return the Pillow Image object
+        print("--- RENDER END ---")
+        return img
 
     except FileNotFoundError:
         print(f"RENDER_DEBUG: ERROR: Poster image not found at {full_poster_path}")
+        print("--- RENDER END ---")
         return None
     except Exception as e:
         print(f"RENDER_DEBUG: ERROR during image rendering for {poster_path}: {e}")
+        print("--- RENDER END ---")
+        # Re-raise the exception here to get a full traceback if needed for deeper debugging
+        # raise e
         return None
 
-
-def get_named_players():
-    """Returns a list of player_ids who have set a name other than the default."""
-    return [p_id for p_id, p_data in game_state['players'].items() if p_data.get('name') and p_data['name'] != 'Unnamed Player']
-
-def check_all_submitted():
-    """Checks if all named players have submitted BOTH caption texts."""
-    named_player_ids = get_named_players()
-    if not named_player_ids: return False
-    # Check if the caption entry exists and has both text fields populated AND at least one is non-empty
-    players_not_submitted = [p_id for p_id in named_player_ids if not game_state['captions'].get(p_id) or (not game_state['captions'][p_id].get('text1') and not game_state['captions'][p_id].get('text2'))]
-    return len(players_not_submitted) == 0
-
-
-def check_all_voted():
-    """Checks if all named players who *submitted a caption* have voted."""
-    # Only named players who successfully submitted BOTH caption texts (or at least one) are expected to vote.
-    named_players_who_submitted = [p_id for p_id, caption_data in game_state['captions'].items() if p_id in get_named_players() and (caption_data.get('text1') or caption_data.get('text2'))]
-    if not named_players_who_submitted: return True
-
-    voters_needed = [p_id for p_id in named_players_who_submitted if game_state['players'].get(p_id) and not game_state['players'][p_id].get('voted_this_round')]
-    return len(voters_needed) == 0
-
-def check_and_advance_state_if_timer_expired():
-    """Checks if the current phase timer has expired and transitions the state."""
-    current_time = time.time()
-    if game_state['state'] in ['writing', 'voting'] and game_state.get('phase_end_time') is not None and current_time > game_state['phase_end_time']:
-        print(f"Timer expired for state {game_state['state']}. Advancing state...")
-        if game_state['state'] == 'writing':
-            print("Transitioning from writing to voting due to timer.")
-            game_state['state'] = 'voting'
-            game_state['phase_end_time'] = current_time + VOTING_TIME_SECONDS # Start voting timer
-            print(f"Transitioned to voting. Voting timer set for {VOTING_TIME_SECONDS}s.")
-            for player_data in game_state['players'].values():
-                player_data['voted_this_round'] = False # Reset voted status for the new voting phase
-
-        elif game_state['state'] == 'voting':
-            print("Transitioning from voting to round_results due to timer.")
-            game_state['state'] = 'round_results'
-            game_state['phase_end_time'] = None
-            tally_votes() # Tally votes when voting time is up
 
 # --- Routes ---
 
