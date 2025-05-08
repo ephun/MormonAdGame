@@ -42,59 +42,51 @@
 
     <p>Player: {{ current_player.name }} | Score: {{ current_player.score }}</p>
 
-    {# --- JavaScript for Timer --- #}
+        {# --- JavaScript for Timer --- #}
     <script>
         // Get the phase end time (in seconds since epoch) passed from Flask
-        // Use JSON.parse and tojson to handle potential None and make it valid JS syntax for linters
         const phaseEndTime = JSON.parse('{{ phase_end_time | tojson }}');
 
         let timerInterval;
         const timerDisplay = document.getElementById('timer');
 
         function updateTimerDisplay() {
-            const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
-            let remainingTime = phaseEndTime - currentTime;
+            const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds (integer)
+            let remainingTime = phaseEndTime - currentTime; // Remaining seconds (integer)
 
             if (remainingTime < 0) {
-                remainingTime = 0; // Don't show negative time
-                clearInterval(timerInterval); // Stop the timer
-
-                // Timer expired, redirect to the wait page.
-                // The wait page's meta refresh will trigger the server-side timer check
-                // and advance the state, then redirect the player correctly.
-                 console.log("Writing time is up! Redirecting to wait page.");
-                 // Use window.location.replace to prevent the user from going back to the expired page
-                 window.location.replace("{{ url_for('wait') }}");
-
+                remainingTime = 0;
             }
 
-            // Format remaining time as MM:SS or SS
-            const minutes = Math.floor(remainingTime / 60);
-            const seconds = remainingTime % 60;
+             // Format remaining time as MM:SS
+            const minutes = Math.floor(remainingTime / 60); // Integer minutes
+            const seconds = remainingTime % 60;           // Integer seconds remainder
+
             const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
             timerDisplay.textContent = `Time Remaining: ${formattedTime}`;
+
+            if (remainingTime <= 0) {
+                 clearInterval(timerInterval); // Stop the timer
+                 // Timer expired, redirect to the wait page.
+                 console.log("Writing time is up! Redirecting to wait page.");
+                 window.location.replace("{{ url_for('wait') }}");
+            }
         }
 
-        // Update the timer display immediately when the page loads
-        // Only start the timer if phaseEndTime is a valid number (not null or undefined) and greater than 0
-        if (typeof phaseEndTime === 'number' && phaseEndTime > 0) { // Added > 0 check
-             updateTimerDisplay();
-             // Update the timer display every second
-             timerInterval = setInterval(updateTimerDisplay, 1000);
-        } else if (phaseEndTime <= 0 && typeof phaseEndTime === 'number') { // Timer might already be at 0 or less if page loaded late
+        // Update the timer display immediately and start the interval
+        // Only start the timer if phaseEndTime is a valid number and greater than 0
+        if (typeof phaseEndTime === 'number' && phaseEndTime > 0) {
+             updateTimerDisplay(); // Call once immediately
+             timerInterval = setInterval(updateTimerDisplay, 1000); // Update every second
+        } else if (typeof phaseEndTime === 'number' && phaseEndTime <= 0) { // Timer already expired on load
              timerDisplay.textContent = "Time is up!";
-             // Redirect immediately if time is already 0 or less on load
              console.log("Writing time is already 0 or less on load. Redirecting to wait page.");
              window.location.replace("{{ url_for('wait') }}");
         } else {
              timerDisplay.textContent = "Timer Error";
              console.error("Phase end time is not a valid number:", phaseEndTime);
         }
-
-
-        // Optional: Clear the interval if the user navigates away (less critical with redirects)
-        // window.addEventListener('beforeunload', () => { clearInterval(timerInterval); });
 
     </script>
 
