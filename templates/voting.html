@@ -57,21 +57,23 @@
        const timerDisplay = document.getElementById('timer');
 
        function updateTimerDisplay() {
-           const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds (integer)
-           let remainingTime = phaseEndTime - currentTime; // Remaining seconds (integer)
+           const currentTime = Date.now() / 1000; // Current time in seconds (float)
+           let remainingTime = phaseEndTime - currentTime; // Remaining seconds (float)
 
            if (remainingTime < 0) {
                remainingTime = 0;
            }
 
-           // Format remaining time as MM:SS
-           const minutes = Math.floor(remainingTime / 60); // Integer minutes
-           const seconds = remainingTime % 60;           // Integer seconds remainder
+           // Format remaining time as MM:SS (integer seconds)
+           const totalRemainingSeconds = Math.floor(remainingTime); // Floor to get integer seconds for display
+           const minutes = Math.floor(totalRemainingSeconds / 60);
+           const seconds = totalRemainingSeconds % 60;
 
            const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
            timerDisplay.textContent = `Time Remaining: ${formattedTime}`;
 
+           // Use the original float remainingTime for the <= 0 check for better accuracy on timer expiry
            if (remainingTime <= 0) {
                clearInterval(timerInterval); // Stop the timer
                 // Timer expired, redirect to the wait page.
