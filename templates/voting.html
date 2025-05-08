@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MormonAds Quiplash - Vote</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>Round {{ game_state.current_round }} / 5</h1>
+    <h2>Vote for Your Favorite Caption</h2>
+
+     {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <ul class="flash-messages">
+                {% for message in messages %}
+                    <li>{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    {% endwith %}
+
+    {# Timer Display #}
+    <div id="timer">Time Remaining: --:--</div>
+
+    <p>Vote for the best caption (you cannot vote for your own):</p>
+
+    {# Display rendered images instead of text list #}
+    <form action="{{ url_for('submit_vote') }}" method="post">
+        <ul class="caption-options-list"> {# Use a new class for styling rendered options #}
+        {% for author_id in voteable_author_ids %} {# voteable_author_ids is passed from app.py #}
+            <li>
+                {# Radio button to select this caption #}
+                <input type="radio" id="vote_{{ loop.index }}" name="vote" value="{{ author_id }}" required>
+                {# Label contains the rendered image #}
+                <label for="vote_{{ loop.index }}" class="caption-image-label">
+                    {# Display the rendered image using the new route #}
+                    {# Provide alt text for accessibility #}
+                    <img src="{{ url_for('rendered_caption', caption_author_id=author_id) }}" alt="Caption option by {{ game_state.players.get(author_id, {}).get('name', 'Unknown Player') }}" class="rendered-caption-image">
+                </label>
+            </li>
+        {% else %} {# Executes if voteable_author_ids is empty #}
+            <li>No captions were submitted this round by other players.</li>
+        {% endfor %}
+        </ul>
+
+        {# Disable submit button if no voteable captions #}
+        <button type="submit" {% if not voteable_author_ids %}disabled{% endif %}>Submit Vote</button>
+    </form>
+
+    <p>Player: {{ current_player.name }} | Score: {{ current_player.score }}</p>
+
+    {# --- JavaScript for Timer --- #}
+     <script>
+        // Get the phase end time (in seconds since epoch) passed from Flask
+        const phaseEndTime = JSON.parse('{{ phase_end_time | tojson }}');
+
+        let timerInterval;
+        const timerDisplay = document.getElementById('timer');
+
+        function updateTimerDisplay() {
+            const currentTime = Math.floor(Date.now() / 1000);
+            let remainingTime = phaseEndTime - currentTime;
+
+            if (remainingTime < 0) {
+                remainingTime = 0;
+                clearInterval(timerInterval);
+
+                 console.log("Voting time is up! Redirecting to wait page.");
+                 window.location.replace("{{ url_for('wait') }}");
+            }
+
+            const minutes = Math.floor(remainingTime / 60);
+            const seconds = remainingTime % 60;
+            const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+            timerDisplay.textContent = `Time Remaining: ${formattedTime}`;
+        }
+
+        // Only start the timer if phaseEndTime is a valid number and greater than 0
+         if (typeof phaseEndTime === 'number' && phaseEndTime > 0) {
+            updateTimerDisplay();
+            timerInterval = setInterval(updateTimerDisplay, 1000);
+        } else if (phaseEndTime <= 0 && typeof phaseEndTime === 'number') {
+             timerDisplay.textContent = "Time is up!";
+             console.log("Voting time is already 0 or less on load. Redirecting to wait page.");
+             window.location.replace("{{ url_for('wait') }}");
+        }
+        else {
+             timerDisplay.textContent = "Timer Error";
+             console.error("Phase end time is not a valid number:", phaseEndTime);
+        }
+    </script>
+
+
+</body>
+</html>

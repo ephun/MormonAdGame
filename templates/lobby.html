@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MormonAds Quiplash - Lobby</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>MormonAds Quiplash</h1>
+    <h2>Lobby</h2>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <ul class="flash-messages">
+                {% for message in messages %}
+                    <li>{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    {% endwith %}
+
+    {# Show game in progress message if applicable #}
+    {% if game_in_progress %}
+        <p>A game is currently in progress. Please wait for it to finish or try again later.</p>
+    {% else %}
+        {# Always show the name form when in lobby state and game is not in progress #}
+        {% if current_player %}
+             <form action="{{ url_for('lobby') }}" method="post">
+                <label for="player_name">Your Name:</label><br>
+                {# Pre-fill with current name from game state #}
+                <input type="text" id="player_name" name="player_name" value="{{ current_player.name }}" required>
+                <button type="submit">Update Name</button>
+             </form>
+
+             <p>Welcome, <strong>{{ current_player.name }}</strong>!</p>
+
+             <h3>Players in Lobby:</h3>
+             {% if game_state.players %}
+                <ul>
+                {# Iterate through all players in state, sorted by name for consistency #}
+                {# Note: The template receives game_state['players'] directly, which are dictionaries.
+                   We need to check player_id against current_session_id #}
+                {% for player_id, player_data in game_state.players.items() | sort(attribute='1.name') %}
+                    {# Show player name and part of their ID for debugging #}
+                    <li>{{ player_data.name }} (ID: {{ player_id[:4] }}...)
+                        {# Correctly check if this is the current user's session ID #}
+                        {% if player_id == current_session_id %}(You){% endif %}
+                    </li>
+                {% endfor %}
+                </ul>
+             {% else %}
+                 <p>No players yet. Be the first to join!</p>
+             {% endif %}
+
+             {# Check number of NAMED players for starting the game #}
+             {# This calculation is repeated from app.py but is needed for the template logic #}
+             {% set named_players_count = game_state.players.values() | selectattr('name', 'ne', 'Unnamed Player') | list | length %}
+
+             <form action="{{ url_for('start_game') }}" method="post">
+                 <button type="submit" {% if named_players_count < 2 %}disabled{% endif %}>Start Game (Need at least 2 named players)</button>
+             </form>
+             {% if named_players_count < 2 %}
+                 <p>Need at least 2 players with names to start.</p>
+             {% endif %}
+
+        {% else %}
+            {# This case should theoretically not happen if get_player_id works and state is lobby #}
+             <p>Connecting to game...</p>
+        {% endif %}
+
+         {% if not game_state.all_posters %}
+            <p style="color: red;">Error: No posters found in static/posters. Cannot start game.</p>
+         {% endif %}
+
+    {% endif %} {# End game_in_progress check #}
+
+    {# --- Add the JavaScript polling script --- #}
+    {% if not game_in_progress %} {# Only run this if the game is currently in the lobby state #}
+        <script>
+            let pollInterval;
+            const pollingFrequency = 3000; // Poll every 3 seconds
+
+            function checkGameState() {
+                fetch("{{ url_for('game_state_check') }}")
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log("Polling state:", data.state); // Debug log in browser console
+                        if (data.state !== 'lobby') {
+                            console.log("Game state changed to", data.state, ". Redirecting...");
+                            clearInterval(pollInterval); // Stop polling
+                            // Redirect to the wait page, which triggers the server-side timer check
+                            // and then redirects to the correct state (writing, voting, etc.)
+                             window.location.replace("{{ url_for('wait') }}"); // Use replace
+                        }
+                        // If still in lobby, polling continues
+                    })
+                    .catch(error => {
+                        console.error('Polling error:', error);
+                        // Optionally stop polling or handle errors more gracefully
+                        // clearInterval(pollInterval);
+                        // You might want to show a message to the user if polling fails repeatedly
+                    });
+            }
+
+            // Start polling when the page loads
+            pollInterval = setInterval(checkGameState, pollingFrequency);
+
+            // Optional: Clear interval if the user navigates away manually
+            // window.addEventListener('beforeunload', () => {
+            //     clearInterval(pollInterval);
+            // });
+
+        </script>
+    {% endif %}
+
+</body>
+</html>

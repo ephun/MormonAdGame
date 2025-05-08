@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MormonAds Quiplash - Game Over</title>
+     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>Game Over!</h1>
+    <h2>Final Scores:</h2>
+
+     {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <ul class="flash-messages">
+                {% for message in messages %}
+                    <li>{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    {% endwith %}
+
+    <table class="score-table">
+        <thead>
+            <tr>
+                <th>Rank</th>
+                <th>Player</th>
+                <th>Score</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for player in final_scores %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ player.name }}</td>
+                    <td>{{ player.score }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <form action="{{ url_for('reset_game') }}" method="post">
+         <button type="submit">Start a New Game</button>
+    </form>
+
+    {% if current_player %}
+        <p>You are: {{ current_player.name }} | Your Score: {{ current_player.score }}</p>
+    {% endif %}
+
+</body>
+</html>

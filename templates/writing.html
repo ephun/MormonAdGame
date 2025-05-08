@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MormonAds Quiplash - Round {{ game_state.current_round }}</title>
+     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>Round {{ game_state.current_round }} / 5</h1>
+    <h2>Your Caption</h2>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <ul class="flash-messages">
+                {% for message in messages %}
+                    <li>{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    {% endwith %}
+
+    {# Timer Display #}
+    <div id="timer">Time Remaining: --:--</div>
+
+    <div class="poster-container">
+        <img src="{{ url_for('static', filename=game_state.current_poster) }}" alt="MormonAd Poster">
+    </div>
+
+    {# Update form to have two input fields #}
+    <form action="{{ url_for('submit_caption') }}" method="post">
+        <label for="caption_text1">Text 1 (Title):</label><br>
+        <input type="text" id="caption_text1" name="caption_text1" maxlength="40"><br><br> {# Added maxlength from your example #}
+
+        <label for="caption_text2">Text 2 (Body):</label><br>
+        {# Adjusted textarea size to match example, resize: none #}
+        <textarea id="caption_text2" name="caption_text2" rows="4" cols="20" style="resize:none;" wrap="hard" maxlength = 80></textarea><br> {# Added maxlength and wrap="hard" from your example #}
+
+        {# Require at least one field #}
+        <p style="font-size: 0.9em; color: #555;">Enter text in at least one field.</p>
+
+        <button type="submit">Submit Caption</button>
+    </form>
+
+    <p>Player: {{ current_player.name }} | Score: {{ current_player.score }}</p>
+
+    {# --- JavaScript for Timer --- #}
+    <script>
+        // Get the phase end time (in seconds since epoch) passed from Flask
+        // Use JSON.parse and tojson to handle potential None and make it valid JS syntax for linters
+        const phaseEndTime = JSON.parse('{{ phase_end_time | tojson }}');
+
+        let timerInterval;
+        const timerDisplay = document.getElementById('timer');
+
+        function updateTimerDisplay() {
+            const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
+            let remainingTime = phaseEndTime - currentTime;
+
+            if (remainingTime < 0) {
+                remainingTime = 0; // Don't show negative time
+                clearInterval(timerInterval); // Stop the timer
+
+                // Timer expired, redirect to the wait page.
+                // The wait page's meta refresh will trigger the server-side timer check
+                // and advance the state, then redirect the player correctly.
+                 console.log("Writing time is up! Redirecting to wait page.");
+                 // Use window.location.replace to prevent the user from going back to the expired page
+                 window.location.replace("{{ url_for('wait') }}");
+
+            }
+
+            // Format remaining time as MM:SS or SS
+            const minutes = Math.floor(remainingTime / 60);
+            const seconds = remainingTime % 60;
+            const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+            timerDisplay.textContent = `Time Remaining: ${formattedTime}`;
+        }
+
+        // Update the timer display immediately when the page loads
+        // Only start the timer if phaseEndTime is a valid number (not null or undefined) and greater than 0
+        if (typeof phaseEndTime === 'number' && phaseEndTime > 0) { // Added > 0 check
+             updateTimerDisplay();
+             // Update the timer display every second
+             timerInterval = setInterval(updateTimerDisplay, 1000);
+        } else if (phaseEndTime <= 0 && typeof phaseEndTime === 'number') { // Timer might already be at 0 or less if page loaded late
+             timerDisplay.textContent = "Time is up!";
+             // Redirect immediately if time is already 0 or less on load
+             console.log("Writing time is already 0 or less on load. Redirecting to wait page.");
+             window.location.replace("{{ url_for('wait') }}");
+        } else {
+             timerDisplay.textContent = "Timer Error";
+             console.error("Phase end time is not a valid number:", phaseEndTime);
+        }
+
+
+        // Optional: Clear the interval if the user navigates away (less critical with redirects)
+        // window.addEventListener('beforeunload', () => { clearInterval(timerInterval); });
+
+    </script>
+
+</body>
+</html>

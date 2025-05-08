@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MormonAds Quiplash - Results</title>
+     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>Round {{ game_state.current_round }} / 5 Results</h1>
+    <h2>Scores Updated!</h2>
+
+     {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <ul class="flash-messages">
+                {% for message in messages %}
+                    <li>{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    {% endwith %}
+
+    {# Display the poster for the round (without caption) #}
+     <div class="poster-container">
+        <img src="{{ url_for('static', filename=game_state.current_poster) }}" alt="MormonAd Poster">
+    </div>
+
+
+    <h3>Captions and Votes:</h3>
+    {% if results %}
+        {# Display rendered images in the results list #}
+        <ul class="results-list rendered-results-list"> {# Added new class #}
+        {% for result in results %}
+            <li class="{{ 'winner' if result.is_winner }}">
+                {# Display the rendered image #}
+                <div class="result-image-container">
+                    {# Provide alt text for accessibility #}
+                    <img src="{{ url_for('rendered_caption', caption_author_id=result.author_id) }}" alt="Caption by {{ result.author_name }}" class="rendered-result-image">
+                </div>
+                {# Display author name and votes below the image #}
+                <div class="result-info">
+                     by <strong>{{ result.author_name }}</strong>
+                    <span class="votes">({{ result.votes }} votes)</span>
+                    {% if result.is_winner %} <span class="badge">WINNER</span> {% endif %}
+                     {# Optional: Show raw text below image for readability #}
+                     {# <div class="raw-caption-text">"{{ result.caption_text1 }}" "{{ result.caption_text2 }}"</div> #}
+                </div>
+            </li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>No captions were submitted this round by active players.</p>
+    {% endif %}
+
+
+    <h3>Current Scores:</h3>
+    <table class="score-table">
+        <thead>
+            <tr>
+                <th>Rank</th>
+                <th>Player</th>
+                <th>Score</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for player in sorted_players %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ player.name }}</td>
+                    <td>{{ player.score }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if is_game_over %}
+        <p>That was the final round!</p>
+        {# Link to Game Over page #}
+        <form action="{{ url_for('game_over') }}" method="get">
+            <button type="submit">See Final Scores</button>
+        </form>
+    {% else %}
+        <p>Ready for the next round?</p>
+        {# Form to start the next round (POST request) #}
+        <form action="{{ url_for('next_round') }}" method="post">
+            <button type="submit">Next Round ({{ game_state.current_round + 1 }}/5)</button>
+        </form>
+    {% endif %}
+
+     {% if current_player %}
+        <p>You are: {{ current_player.name }} | Your Score: {{ current_player.score }}</p>
+     {% endif %}
+
+
+</body>
+</html>

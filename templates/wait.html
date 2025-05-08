@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MormonAds Quiplash - Waiting</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    {# Add meta refresh to automatically poll the server. This will cause the browser
+       to repeatedly request the /wait page, which checks the game state on the server
+       and redirects the player if the state has changed (e.g., timer expired, all submitted/voted).
+       Adjust content value (seconds) as needed. #}
+    <meta http-equiv="refresh" content="{{ refresh_seconds }}">
+</head>
+<body>
+    <h1>Please Wait...</h1>
+    <p>{{ message }}</p>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <ul class="flash-messages">
+                {% for message in messages %}
+                    <li>{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    {% endwith %}
+
+
+    <p>Current Game State: <strong>{{ game_state.state | replace('_', ' ') | title }}</strong></p>
+    <p>This page will refresh automatically to check for updates.</p>
+
+
+    <h3>Players:</h3>
+    {# Use the sorted_players list passed from the route, which now includes player_id #}
+    <ul>
+        {% for player_data in sorted_players %}
+            <li>
+                {{ player_data.name }} (ID: {{ player_data.player_id[:4] }}...) {# Access player_id directly from data #}
+                {% if game_state.state == 'writing' %}
+                    - {% if player_data.submitted_this_round %}Submitted{% else %}Writing...{% endif %}
+                {% elif game_state.state == 'voting' %}
+                    - {% if player_data.voted_this_round %}Voted{% else %}Voting...{% endif %}
+                {% endif %}
+                (Score: {{ player_data.score }})
+                 {# Check if this is the current user's session ID #}
+                {% if player_data.player_id == session_id %}(You){% endif %} {# Use session_id passed from route #}
+            </li>
+        {% endfor %}
+    </ul>
+
+    {# Display current player info #}
+    {% if current_player %}
+        <p>You are: {{ current_player.name }} | Your Score: {{ current_player.score }}</p>
+    {% endif %}
+
+</body>
+</html>
