@@ -769,11 +769,16 @@ def round_results():
 
     is_game_over = game_state['current_round'] >= 5
 
+    # --- NEW: If game is over, set the state to 'game_over' now ---
+    if is_game_over:
+        print(f"Round {game_state['current_round']} is the final round. Setting state to 'game_over'.")
+        game_state['state'] = 'game_over'
+        game_state['phase_end_time'] = None # Clear timer
+
     return render_template('round_results.html',
                            game_state=game_state, current_player=current_player,
                            results=results, sorted_players=sorted_players,
-                           is_game_over=is_game_over)
-
+                           is_game_over=is_game_over) # is_game_over still used by template to show correct button/message
 
 @app.route('/next_round', methods=['POST'])
 def next_round():
