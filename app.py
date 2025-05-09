@@ -11,8 +11,8 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'a_very_secret_key_replace_me_in_prod'
 
 # --- Configuration ---
-WRITING_TIME_SECONDS = 30
-VOTING_TIME_SECONDS = 30
+WRITING_TIME_SECONDS = 60
+VOTING_TIME_SECONDS = 60
 WAIT_PAGE_REFRESH_SECONDS = 1
 
 # --- Font and Rendering Configuration (Percentage-based, adjust values 0-100) ---
